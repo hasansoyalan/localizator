@@ -27,13 +27,22 @@ class Localizator
      */
     protected function collect(Translatable $keys, string $type, string $locale, bool $removeMissing): Translatable
     {
+        $translated = $this->getCollector($type)->getTranslated($locale)
+            ->when($removeMissing, function (Translatable $keyCollection) use ($keys) {
+                return $keyCollection->intersectByKeys($keys);
+            });
+
+        $newTranslates = $keys->diffKeys($translated);
+
         return $keys
-            ->merge($this->getCollector($type)->getTranslated($locale)
-                ->when($removeMissing, function (Translatable $keyCollection) use ($keys) {
-                    return $keyCollection->intersectByKeys($keys);
-                }))->when(config('localizator.sort'), function (Translatable $keyCollection) {
+            ->merge($translated)
+            ->when(config('localizator.sort'), function (Translatable $keyCollection) {
                     return $keyCollection->sortAlphabetically();
-                });
+                })
+            ->mapWithKeys(function ($value, $key) use ($newTranslates) {
+                return [$newTranslates->has($key) ? "_".$key : $key =>  $value];
+            })->sortBy(fn($value, $key) => $key[0] === "_");
+
     }
 
     /**
